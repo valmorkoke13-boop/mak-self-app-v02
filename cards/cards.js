@@ -1,1 +1,0 @@
-window.MAK_CARDS=[];
