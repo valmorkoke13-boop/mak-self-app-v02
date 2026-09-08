@@ -1,13 +1,13 @@
 const app = document.getElementById("app");
 const tg = window.Telegram?.WebApp;
 if (tg) { try { tg.ready(); tg.expand(); } catch(e){} }
+
 const cards = [
- {id:"card-01", src:"cards/card-01.svg", name:"Образ 01"},
- {id:"card-02", src:"cards/card-02.svg", name:"Образ 02"},
- {id:"card-03", src:"cards/card-03.svg", name:"Образ 03"}
+ {id:"card-01", src:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA", name:"Образ 01"}
 ];
+
 const state = {screen:"home", topic:null, context:"", card:null, questions:[], qIndex:0, answers:[], history:loadHistory()};
-function esc(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
+function esc(s){return String(s||"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#039;"}[c]));}
 function topicById(id){return TOPICS.find(t=>t.id===id)||TOPICS[5];}
 function go(screen){state.screen=screen;render();window.scrollTo({top:0,behavior:"smooth"});}
 function button(label,cls,action){return `<button class="${cls}" data-action="${action}">${label}</button>`;}
