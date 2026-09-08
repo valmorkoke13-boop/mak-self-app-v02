@@ -2,28 +2,105 @@ const app = document.getElementById("app");
 const tg = window.Telegram?.WebApp;
 if (tg) { try { tg.ready(); tg.expand(); } catch(e){} }
 
-const cards = [
- {id:"card-01", src:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA", name:"Образ 01"}
-];
+const state = {
+  screen: "home", topic: null, context: "", card: null,
+  questions: [], qIndex: 0, answers: [], history: loadHistory()
+};
 
-const state = {screen:"home", topic:null, context:"", card:null, questions:[], qIndex:0, answers:[], history:loadHistory()};
-function esc(s){return String(s||"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#039;"}[c]));}
-function topicById(id){return TOPICS.find(t=>t.id===id)||TOPICS[5];}
-function go(screen){state.screen=screen;render();window.scrollTo({top:0,behavior:"smooth"});}
-function button(label,cls,action){return `<button class="${cls}" data-action="${action}">${label}</button>`;}
-function render(){const views={home:renderHome,topic:renderTopic,context:renderContext,reveal:renderReveal,questions:renderQuestion,result:renderResult,history:renderHistory};app.innerHTML=views[state.screen]();bind();}
-function header(){return `<div class="topbar"><div class="brand">МАК</div><button class="link-btn" data-action="history">Моя история</button></div>`;}
-function renderHome(){return `<div class="shell">${header()}<section class="hero"><div class="kicker">Исследование себя</div><h1>Посмотри.<br>Заметь.<br>Пойми.</h1><p class="lead">Посмотри на образ. Заметь то, что возникает само. А потом попробуй понять, почему именно это ты увидел.</p></section><div class="stack">${button("Начать исследование","primary","start")}${button("📖 Моя история","secondary","history")}</div><div class="notice" style="margin-top:18px">Здесь нет правильного толкования карты. Важны твои слова, ассоциации и то, как меняется твой взгляд на образ.</div></div>`;}
-function renderTopic(){return `<div class="shell">${header()}<button class="back" data-action="home">← Назад</button><div class="card"><div class="kicker">Шаг 1</div><h2>О чём хочется подумать?</h2><p class="hint">Можно выбрать тему или просто позволить исследованию идти своим ходом.</p><div class="stack" style="margin-top:20px">${TOPICS.map(t=>`<button class="topic" data-topic="${t.id}">${t.icon} ${t.title}<span>${t.desc}</span></button>`).join("")}</div></div></div>`;}
-function renderContext(){const t=topicById(state.topic);return `<div class="shell">${header()}<button class="back" data-action="topic">← Назад</button><div class="card"><div class="kicker">${t.icon} ${esc(t.title)}</div><h2>Есть ли сейчас что-то, о чём тебе хочется подумать?</h2><p class="hint">Напиши пару слов. Можно и ничего не писать — это не обязательная часть.</p><textarea id="context" placeholder="Например: я не понимаю, стоит ли делать следующий шаг…">${esc(state.context)}</textarea><div class="actions">${button("Продолжить","primary","context-next")}${button("Пропустить","secondary","context-skip")}</div></div></div>`;}
-function renderReveal(){return `<div class="shell">${header()}<div class="card"><div class="kicker">Твой образ</div><h2>Готов?</h2><p class="reveal-text">Сейчас появится случайный образ. Не ищи правильный ответ. Не пытайся понять, что «означает» эта карта. Просто посмотри.</p><div class="card-image-wrap"><img class="card-image" src="${state.card.src}" alt="Случайный ассоциативный образ"></div>${button("Вытянуть карту и начать","primary","draw")}</div></div>`;}
-function renderQuestion(){const total=state.questions.length,q=state.questions[state.qIndex],pct=Math.round(state.qIndex/total*100);return `<div class="shell">${header()}<div class="progress"><i style="width:${pct}%"></i></div><div class="card"><div class="kicker">Смотрим на образ</div><div class="question">${esc(q)}<small>Не ищи «правильный» ответ. Первая живая мысль тоже подходит.</small></div><textarea id="answer" placeholder="Что приходит в голову?"></textarea><div class="answer-count">${state.answers.length} ответов сохранено</div><div class="actions">${button(state.qIndex===total-1?"Завершить":"Дальше","primary","answer-next")}</div></div></div>`;}
-function makeResult(){const text=state.answers.map(a=>a.trim()).filter(Boolean).join(" "),words=text.toLowerCase(),has=(...arr)=>arr.some(x=>words.includes(x));let observation,contradiction,connection,question;if(has("контрол","провер","заранее","предусмотр","знать"))observation="В твоих ответах несколько раз появляется тема предсказуемости: тебе важно понять, что будет дальше, и заранее подготовиться.";else if(has("боюсь","страх","тревог","опас","неизвест"))observation="В рассказе заметно внимание к тому, что может пойти не так. При этом ты не только замечаешь напряжение, но и ищешь способ с ним обойтись.";else if(has("друг","отнош","близ","вместе","один"))observation="Ты часто возвращаешься к тому, как люди расположены друг к другу и чего они ждут друг от друга.";else observation="Важнее всего здесь то, как твой рассказ менялся: ты не просто описывал картинку, а постепенно добавлял ей историю и связь с собой.";const first=state.answers[0]||"",later=state.answers[Math.min(6,state.answers.length-1)]||"";contradiction=first&&later&&first.toLowerCase()!==later.toLowerCase()?`Сначала ты увидел образ как «${clip(first,70)}», а позже сместил внимание к «${clip(later,70)}». Между этими двумя взглядами есть интересное напряжение.`:"В твоих ответах есть место, которое пока не складывается в однозначную историю — и это может быть интереснее готового объяснения.";connection=state.context?`Ты пришёл с темой «${clip(state.context,90)}». В рассказе о карте она отзывается через собственные образы и действия, а не через готовое толкование карты.`:"Связь с жизнью появляется не из значения карты, а из того, какие слова и ситуации ты сам к ней привязал.";if(has("выбор","реш","шаг","сделать"))question="Если это действительно похоже на твою ситуацию, какой следующий шаг ты выбираешь сам — даже если не можешь заранее знать его результат?";else if(has("друг","отнош","ожида","близ"))question="Что изменилось бы в этой истории, если бы тебе не нужно было угадывать, чего хочет другой человек?";else question="Что в этой истории ты обычно не замечаешь о себе — и что изменится, если заметить это сейчас?";return{observation,contradiction,connection,question};}
-function clip(s,n){s=s.trim();return s.length>n?s.slice(0,n-1)+"…":s;}
-function renderResult(){const r=makeResult(),t=topicById(state.topic);return `<div class="shell">${header()}<div class="card"><div class="kicker">Твоя история</div><h2>${esc(t.icon+" "+t.title)}</h2><div class="result-block"><div class="result-label">Что интересно заметить</div><div class="result-text">${esc(r.observation)}</div></div><div class="result-block"><div class="result-label">Интересное противоречие</div><div class="result-text">${esc(r.contradiction)}</div></div><div class="result-block"><div class="result-label">Возможная связь</div><div class="result-text">${esc(r.connection)}</div></div><div class="result-block"><div class="result-label">Вопрос с собой</div><div class="quote">${esc(r.question)}</div></div><div class="actions">${button("Сохранить","primary","save")}${button("Поделиться","secondary","share")}${button("Исследовать ещё","secondary","restart")}</div><p class="hint" style="margin-top:16px">Это не психологический диагноз и не расшифровка карты. Это аккуратная сборка наблюдений по твоим собственным ответам.</p></div></div>`;}
-function renderHistory(){return `<div class="shell">${header()}<button class="back" data-action="home">← На главную</button><div class="card"><div class="kicker">Прошлые исследования</div><h2>Моя история</h2>${state.history.length?state.history.map(h=>`<div class="history-item"><div class="history-topic">${esc(h.topic)}</div><div class="history-date">${esc(h.date)}</div><div class="history-theme">${esc(h.observation)}</div></div>`).join(""):`<p class="empty">Здесь будут появляться завершённые исследования.</p>`}</div></div>`;}
-function bind(){document.querySelectorAll("[data-action]").forEach(b=>b.onclick=()=>{const a=b.dataset.action;if(a==="start")go("topic");if(a==="home")go("home");if(a==="topic")go("topic");if(a==="history")go("history");if(a==="context-next"||a==="context-skip"){state.context=a==="context-next"?(document.getElementById("context")?.value.trim()||""):"";state.card=cards[Math.floor(Math.random()*cards.length)];go("reveal");}if(a==="draw"){state.questions=buildQuestionPlan(state.topic);state.qIndex=0;state.answers=[];go("questions");}if(a==="answer-next"){const el=document.getElementById("answer"),val=el?.value.trim()||"";if(!val){el?.focus();return}state.answers.push(val);if(state.qIndex>=state.questions.length-1)go("result");else{state.qIndex++;go("questions")}}if(a==="save")saveSession();if(a==="share")shareResult();if(a==="restart"){state.context="";state.card=null;go("topic")}});document.querySelectorAll("[data-topic]").forEach(b=>b.onclick=()=>{state.topic=b.dataset.topic==="random"?TOPICS[Math.floor(Math.random()*(TOPICS.length-1))].id:b.dataset.topic;go("context")});}
-function saveSession(){const r=makeResult(),t=topicById(state.topic),item={topic:t.icon+" "+t.title,date:new Date().toLocaleString("ru-RU",{dateStyle:"medium",timeStyle:"short"}),observation:r.observation};state.history=[item,...state.history].slice(0,30);localStorage.setItem("mak_history",JSON.stringify(state.history));alert("Исследование сохранено.");}
-function loadHistory(){try{return JSON.parse(localStorage.getItem("mak_history")||"[]")}catch(e){return[]}}
-async function shareResult(){const r=makeResult(),text=`МАК — моя история\n\n${r.observation}\n\n${r.question}`;try{if(navigator.share){await navigator.share({title:"МАК — моя история",text});return}await navigator.clipboard.writeText(text);alert("Текст скопирован.");}catch(e){}}
+// Two supplied deck pages are stored in cards/page01.js and cards/page02.js.
+// Each page is a 6×3 sheet, so the prototype exposes 36 real card images.
+const cards = [];
+for (const page of [1, 2]) {
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 6; col++) {
+      cards.push({ page, row, col, name: `Образ ${(page - 1) * 18 + row * 6 + col + 1}` });
+    }
+  }
+}
+
+function esc(s){
+  return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+}
+function topicById(id){ return TOPICS.find(t=>t.id===id) || TOPICS[5]; }
+function go(screen){ state.screen=screen; render(); window.scrollTo({top:0,behavior:"smooth"}); }
+function button(label,cls,action){ return `<button class="${cls}" data-action="${action}">${label}</button>`; }
+
+function render(){
+  const views={home:renderHome,topic:renderTopic,context:renderContext,reveal:renderReveal,questions:renderQuestion,result:renderResult,history:renderHistory};
+  app.innerHTML=views[state.screen]();
+  bind();
+  if(state.screen === "reveal") drawCard();
+}
+function header(){ return `<div class="topbar"><div class="brand">МАК</div><button class="link-btn" data-action="history">Моя история</button></div>`; }
+function renderHome(){ return `<div class="shell">${header()}<section class="hero"><div class="kicker">Исследование себя</div><h1>Посмотри.<br>Заметь.<br>Пойми.</h1><p class="lead">Посмотри на образ. Заметь то, что возникает само. А потом попробуй понять, почему именно это ты увидел.</p></section><div class="stack">${button("Начать исследование","primary","start")}${button("📖 Моя история","secondary","history")}</div><div class="notice" style="margin-top:18px">Здесь нет правильного толкования карты. Важны твои слова, ассоциации и то, как меняется твой взгляд на образ.</div></div>`; }
+function renderTopic(){ return `<div class="shell">${header()}<button class="back" data-action="home">← Назад</button><div class="card"><div class="kicker">Шаг 1</div><h2>О чём хочется подумать?</h2><p class="hint">Можно выбрать тему или просто позволить исследованию идти своим ходом.</p><div class="stack" style="margin-top:20px">${TOPICS.map(t=>`<button class="topic" data-topic="${t.id}">${t.icon} ${t.title}<span>${t.desc}</span></button>`).join("")}</div></div></div>`; }
+function renderContext(){ const t=topicById(state.topic); return `<div class="shell">${header()}<button class="back" data-action="topic">← Назад</button><div class="card"><div class="kicker">${t.icon} ${esc(t.title)}</div><h2>Есть ли сейчас что-то, о чём тебе хочется подумать?</h2><p class="hint">Напиши пару слов. Можно и ничего не писать — это не обязательная часть.</p><textarea id="context" placeholder="Например: я не понимаю, стоит ли делать следующий шаг…">${esc(state.context)}</textarea><div class="actions">${button("Продолжить","primary","context-next")}${button("Пропустить","secondary","context-skip")}</div></div></div>`; }
+function renderReveal(){ return `<div class="shell">${header()}<div class="card"><div class="kicker">Твой образ</div><h2>Готов?</h2><p class="reveal-text">Сейчас появится случайный образ. Не ищи правильный ответ. Не пытайся понять, что «означает» эта карта. Просто посмотри.</p><div class="card-image-wrap"><canvas id="cardCanvas" class="card-image" aria-label="Случайный ассоциативный образ"></canvas></div>${button("Вытянуть карту и начать","primary","draw")}</div></div>`; }
+function renderQuestion(){ const total=state.questions.length,q=state.questions[state.qIndex],pct=Math.round(state.qIndex/total*100); return `<div class="shell">${header()}<div class="progress"><i style="width:${pct}%"></i></div><div class="card"><div class="kicker">Смотрим на образ</div><div class="question">${esc(q)}<small>Не ищи «правильный» ответ. Первая живая мысль тоже подходит.</small></div><textarea id="answer" placeholder="Что приходит в голову?"></textarea><div class="answer-count">${state.answers.length} ответов сохранено</div><div class="actions">${button(state.qIndex===total-1?"Завершить":"Дальше","primary","answer-next")}</div></div></div>`; }
+
+function drawCard(){
+  const canvas=document.getElementById("cardCanvas");
+  const src=window.MAK_PAGES?.[state.card?.page];
+  if(!canvas || !src || !state.card) return;
+  const img=new Image();
+  img.onload=()=>{
+    const sx=14 + state.card.col * 195.5;
+    const sy=11 + state.card.row * 276;
+    const sw=186, sh=268;
+    const ratio=Math.min(1, 520/sw);
+    canvas.width=Math.round(sw*ratio); canvas.height=Math.round(sh*ratio);
+    const ctx=canvas.getContext("2d");
+    ctx.drawImage(img,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+  };
+  img.src=src;
+}
+
+function makeResult(){
+  const text=state.answers.map(a=>a.trim()).filter(Boolean).join(" "), words=text.toLowerCase(), has=(...arr)=>arr.some(x=>words.includes(x));
+  let observation,contradiction,connection,question;
+  if(has("контрол","провер","заранее","предусмотр","знать")) observation="В твоих ответах несколько раз появляется тема предсказуемости: тебе важно понять, что будет дальше, и заранее подготовиться.";
+  else if(has("боюсь","страх","тревог","опас","неизвест")) observation="В рассказе заметно внимание к тому, что может пойти не так. При этом ты не только замечаешь напряжение, но и ищешь способ с ним обойтись.";
+  else if(has("друг","отнош","близ","вместе","один")) observation="Ты часто возвращаешься к тому, как люди расположены друг к другу и чего они ждут друг от друга.";
+  else observation="Важнее всего здесь то, как твой рассказ менялся: ты не просто описывал картинку, а постепенно добавлял ей историю и связь с собой.";
+  const first=state.answers[0]||"", later=state.answers[Math.min(6,state.answers.length-1)]||"";
+  contradiction=first&&later&&first.toLowerCase()!==later.toLowerCase()?`Сначала ты увидел образ как «${clip(first,70)}», а позже сместил внимание к «${clip(later,70)}». Между этими двумя взглядами есть интересное напряжение.`:"В твоих ответах есть место, которое пока не складывается в однозначную историю — и это может быть интереснее готового объяснения.";
+  connection=state.context?`Ты пришёл с темой «${clip(state.context,90)}». В рассказе о карте она отзывается через собственные образы и действия, а не через готовое толкование карты.`:"Связь с жизнью появляется не из значения карты, а из того, какие слова и ситуации ты сам к ней привязал.";
+  if(has("выбор","реш","шаг","сделать")) question="Если это действительно похоже на твою ситуацию, какой следующий шаг ты выбираешь сам — даже если не можешь заранее знать его результат?";
+  else if(has("друг","отнош","ожида","близ")) question="Что изменилось бы в этой истории, если бы тебе не нужно было угадывать, чего хочет другой человек?";
+  else question="Что в этой истории ты обычно не замечаешь о себе — и что изменится, если заметить это сейчас?";
+  return {observation,contradiction,connection,question};
+}
+function clip(s,n){ s=s.trim(); return s.length>n?s.slice(0,n-1)+"…":s; }
+function renderResult(){ const r=makeResult(),t=topicById(state.topic); return `<div class="shell">${header()}<div class="card"><div class="kicker">Твоя история</div><h2>${esc(t.icon+" "+t.title)}</h2><div class="result-block"><div class="result-label">Что интересно заметить</div><div class="result-text">${esc(r.observation)}</div></div><div class="result-block"><div class="result-label">Интересное противоречие</div><div class="result-text">${esc(r.contradiction)}</div></div><div class="result-block"><div class="result-label">Возможная связь</div><div class="result-text">${esc(r.connection)}</div></div><div class="result-block"><div class="result-label">Вопрос с собой</div><div class="quote">${esc(r.question)}</div></div><div class="actions">${button("Сохранить","primary","save")}${button("Поделиться","secondary","share")}${button("Исследовать ещё","secondary","restart")}</div><p class="hint" style="margin-top:16px">Это не психологический диагноз и не расшифровка карты. Это аккуратная сборка наблюдений по твоим собственным ответам.</p></div></div>`; }
+function renderHistory(){ return `<div class="shell">${header()}<button class="back" data-action="home">← На главную</button><div class="card"><div class="kicker">Прошлые исследования</div><h2>Моя история</h2>${state.history.length?state.history.map(h=>`<div class="history-item"><div class="history-topic">${esc(h.topic)}</div><div class="history-date">${esc(h.date)}</div><div class="history-theme">${esc(h.observation)}</div></div>`).join(""):`<p class="empty">Здесь будут появляться завершённые исследования.</p>`}</div></div>`; }
+function bind(){
+  document.querySelectorAll("[data-action]").forEach(b=>b.onclick=()=>{
+    const a=b.dataset.action;
+    if(a==="start")go("topic");
+    if(a==="home")go("home");
+    if(a==="topic")go("topic");
+    if(a==="history")go("history");
+    if(a==="context-next"||a==="context-skip"){
+      state.context=a==="context-next"?(document.getElementById("context")?.value.trim()||""):"";
+      state.card=cards[Math.floor(Math.random()*cards.length)];
+      go("reveal");
+    }
+    if(a==="draw"){
+      state.questions=buildQuestionPlan(state.topic); state.qIndex=0; state.answers=[]; go("questions");
+    }
+    if(a==="answer-next"){
+      const el=document.getElementById("answer"),val=el?.value.trim()||"";
+      if(!val){el?.focus();return}
+      state.answers.push(val);
+      if(state.qIndex>=state.questions.length-1)go("result"); else {state.qIndex++;go("questions")}
+    }
+    if(a==="save")saveSession();
+    if(a==="share")shareResult();
+    if(a==="restart"){state.context="";state.card=null;go("topic")}
+  });
+  document.querySelectorAll("[data-topic]").forEach(b=>b.onclick=()=>{state.topic=b.dataset.topic==="random"?TOPICS[Math.floor(Math.random()*(TOPICS.length-1))].id:b.dataset.topic;go("context")});
+}
+function saveSession(){ const r=makeResult(),t=topicById(state.topic),item={topic:t.icon+" "+t.title,date:new Date().toLocaleString("ru-RU",{dateStyle:"medium",timeStyle:"short"}),observation:r.observation}; state.history=[item,...state.history].slice(0,30); localStorage.setItem("mak_history",JSON.stringify(state.history)); alert("Исследование сохранено."); }
+function loadHistory(){ try{return JSON.parse(localStorage.getItem("mak_history")||"[]")}catch(e){return[]} }
+async function shareResult(){ const r=makeResult(),text=`МАК — моя история\n\n${r.observation}\n\n${r.question}`; try{if(navigator.share){await navigator.share({title:"МАК — моя история",text});return}await navigator.clipboard.writeText(text);alert("Текст скопирован.");}catch(e){} }
 render();
