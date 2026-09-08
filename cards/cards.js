@@ -1,0 +1,1 @@
+window.MAK_CARDS=[];
